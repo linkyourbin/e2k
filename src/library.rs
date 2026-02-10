@@ -2,6 +2,9 @@ use crate::error::{KicadError, Result};
 use regex::Regex;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+
+static SYMBOL_WRITE_LOCK: Mutex<()> = Mutex::new(());
 
 pub struct LibraryManager {
     output_path: PathBuf,
@@ -63,6 +66,9 @@ impl LibraryManager {
 
     /// Add a component to the library file
     pub fn add_component(&self, lib_path: &Path, component_data: &str) -> Result<()> {
+        // Lock to prevent concurrent writes to the same symbol library file
+        let _lock = SYMBOL_WRITE_LOCK.lock().unwrap();
+
         let mut content = if lib_path.exists() {
             // Read existing file and remove the closing parenthesis
             let existing = fs::read_to_string(lib_path)
@@ -99,6 +105,9 @@ impl LibraryManager {
 
     /// Update an existing component in the library file
     pub fn update_component(&self, lib_path: &Path, component_name: &str, new_data: &str) -> Result<()> {
+        // Lock to prevent concurrent writes to the same symbol library file
+        let _lock = SYMBOL_WRITE_LOCK.lock().unwrap();
+
         let content = fs::read_to_string(lib_path)
             .map_err(KicadError::Io)?;
 
