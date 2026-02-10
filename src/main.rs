@@ -169,6 +169,54 @@ fn run(args: Cli) -> error::Result<()> {
             });
         }
 
+        // Convert paths to polylines with bbox adjustment
+        // Parse SVG path commands (M, L) and convert to polylines
+        for ee_path in &ee_symbol.paths {
+            let path_str = &ee_path.path_data;
+            let tokens: Vec<&str> = path_str.split_whitespace().collect();
+            let mut points = Vec::new();
+            let mut i = 0;
+
+            while i < tokens.len() {
+                let token = tokens[i];
+                match token {
+                    "M" | "L" => {
+                        // Move or Line command, followed by x,y coordinates
+                        if i + 1 < tokens.len() {
+                            i += 1;
+                            // Parse coordinate pair (may be "x,y" or separate "x" "y")
+                            let coord_str = tokens[i];
+                            if let Some((x_str, y_str)) = coord_str.split_once(',') {
+                                if let (Ok(x), Ok(y)) = (x_str.parse::<f64>(), y_str.parse::<f64>()) {
+                                    let adj_x = x - component_data.bbox_x;
+                                    let adj_y = component_data.bbox_y - y;
+                                    points.push((adj_x, adj_y));
+                                }
+                            } else if i + 1 < tokens.len() {
+                                // Separate x and y
+                                if let (Ok(x), Ok(y)) = (tokens[i].parse::<f64>(), tokens[i + 1].parse::<f64>()) {
+                                    let adj_x = x - component_data.bbox_x;
+                                    let adj_y = component_data.bbox_y - y;
+                                    points.push((adj_x, adj_y));
+                                    i += 1;
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+                i += 1;
+            }
+
+            if points.len() >= 2 {
+                ki_symbol.polylines.push(kicad::KiPolyline {
+                    points,
+                    stroke_width: ee_path.stroke_width,
+                    fill: ee_path.fill,
+                });
+            }
+        }
+
         // Export symbol
         let exporter = SymbolExporter::new(args.kicad_version());
         let symbol_data = exporter.export(&ki_symbol)?;

@@ -50,6 +50,7 @@ pub struct EeSymbol {
     pub arcs: Vec<EeArc>,
     pub polylines: Vec<EePolyline>,
     pub polygons: Vec<EePolygon>,
+    pub paths: Vec<EePath>,
     pub texts: Vec<EeText>,
 }
 
@@ -116,6 +117,13 @@ pub struct EePolyline {
 #[derive(Debug, Clone)]
 pub struct EePolygon {
     pub points: Vec<(f64, f64)>,
+    pub stroke_width: f64,
+    pub fill: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct EePath {
+    pub path_data: String,  // SVG path string (e.g., "M 0,0 L 10,10")
     pub stroke_width: f64,
     pub fill: bool,
 }

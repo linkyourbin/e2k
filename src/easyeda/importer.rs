@@ -17,6 +17,7 @@ impl SymbolImporter {
             arcs: Vec::new(),
             polylines: Vec::new(),
             polygons: Vec::new(),
+            paths: Vec::new(),
             texts: Vec::new(),
         };
 
@@ -97,6 +98,12 @@ impl SymbolImporter {
                     // Text: T~x~y~rotation~text~id~locked~layerid~type~fontSize
                     if let Ok(text) = Self::parse_text(&fields) {
                         symbol.texts.push(text);
+                    }
+                }
+                "PATH" => {
+                    // Path: PATH~width~layer~path_data~gId~locked
+                    if let Ok(path) = Self::parse_path(&fields) {
+                        symbol.paths.push(path);
                     }
                 }
                 "LIB" => {
@@ -398,6 +405,25 @@ impl SymbolImporter {
             y,
             rotation,
             font_size,
+        })
+    }
+
+    fn parse_path(fields: &[&str]) -> Result<EePath> {
+        if fields.len() < 4 {
+            return Err(EasyedaError::InvalidData("Invalid path data".to_string()).into());
+        }
+
+        // PATH~width~layer~path_data~gId~locked
+        let stroke_width = fields[1].parse::<f64>().unwrap_or(1.0);
+        let path_data = fields[3].to_string();
+
+        // Check if path is filled (usually paths are not filled in symbols)
+        let fill = false;
+
+        Ok(EePath {
+            path_data,
+            stroke_width,
+            fill,
         })
     }
 
