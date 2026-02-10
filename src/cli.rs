@@ -8,8 +8,12 @@ use crate::error::{AppError, Result};
 #[command(about = "Convert EasyEDA/LCSC components to KiCad library formats", long_about = None)]
 pub struct Cli {
     /// LCSC component ID (e.g., C2040)
-    #[arg(long, value_name = "ID")]
-    pub lcsc_id: String,
+    #[arg(long, value_name = "ID", conflicts_with = "batch")]
+    pub lcsc_id: Option<String>,
+
+    /// Batch mode: read LCSC IDs from a file (one ID per line)
+    #[arg(long, value_name = "FILE", conflicts_with = "lcsc_id")]
+    pub batch: Option<PathBuf>,
 
     /// Convert symbol only
     #[arg(long)]
@@ -46,15 +50,28 @@ pub struct Cli {
     /// Enable debug logging
     #[arg(long)]
     pub debug: bool,
+
+    /// Continue on error in batch mode (skip failed components)
+    #[arg(long)]
+    pub continue_on_error: bool,
 }
 
 impl Cli {
     pub fn validate(&self) -> Result<()> {
-        // Validate LCSC ID format (should start with C followed by digits)
-        if !self.lcsc_id.starts_with('C') || self.lcsc_id.len() < 2 {
-            return Err(AppError::Easyeda(
-                crate::error::EasyedaError::InvalidLcscId(self.lcsc_id.clone())
+        // Check if at least one ID source is provided
+        if self.lcsc_id.is_none() && self.batch.is_none() {
+            return Err(AppError::Other(
+                "Either --lcsc-id or --batch must be specified".to_string()
             ));
+        }
+
+        // Validate LCSC ID format if provided
+        if let Some(ref id) = self.lcsc_id {
+            if !id.starts_with('C') || id.len() < 2 {
+                return Err(AppError::Easyeda(
+                    crate::error::EasyedaError::InvalidLcscId(id.clone())
+                ));
+            }
         }
 
         // Check if at least one conversion option is selected
@@ -65,6 +82,51 @@ impl Cli {
         }
 
         Ok(())
+    }
+
+    /// Get list of LCSC IDs to process (either single ID or from batch file)
+    pub fn get_lcsc_ids(&self) -> Result<Vec<String>> {
+        if let Some(ref id) = self.lcsc_id {
+            // Single ID mode
+            Ok(vec![id.clone()])
+        } else if let Some(ref batch_file) = self.batch {
+            // Batch mode: read from file
+            use std::fs;
+            use std::io::{BufRead, BufReader};
+
+            let file = fs::File::open(batch_file)
+                .map_err(|e| AppError::Other(format!("Failed to open batch file: {}", e)))?;
+
+            let reader = BufReader::new(file);
+            let mut ids = Vec::new();
+
+            for (line_num, line) in reader.lines().enumerate() {
+                let line = line.map_err(|e| AppError::Other(format!("Failed to read line {}: {}", line_num + 1, e)))?;
+                let trimmed = line.trim();
+
+                // Skip empty lines and comments
+                if trimmed.is_empty() || trimmed.starts_with('#') {
+                    continue;
+                }
+
+                // Validate LCSC ID format
+                if !trimmed.starts_with('C') || trimmed.len() < 2 {
+                    log::warn!("Line {}: Invalid LCSC ID format '{}', skipping", line_num + 1, trimmed);
+                    continue;
+                }
+
+                ids.push(trimmed.to_string());
+            }
+
+            if ids.is_empty() {
+                return Err(AppError::Other("No valid LCSC IDs found in batch file".to_string()));
+            }
+
+            log::info!("Loaded {} LCSC IDs from batch file", ids.len());
+            Ok(ids)
+        } else {
+            Err(AppError::Other("No LCSC ID source specified".to_string()))
+        }
     }
 
     pub fn kicad_version(&self) -> KicadVersion {

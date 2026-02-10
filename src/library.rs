@@ -157,14 +157,29 @@ impl LibraryManager {
 
         log::info!("Wrote VRML model: {}", wrl_path.display());
 
-        // Write STEP file
+        // Write STEP file only if data is provided
         let step_path = shapes_dir.join(format!("{}.step", model_name));
-        fs::write(&step_path, step_data)
-            .map_err(KicadError::Io)?;
-
-        log::info!("Wrote STEP model: {}", step_path.display());
+        if !step_data.is_empty() {
+            fs::write(&step_path, step_data)
+                .map_err(KicadError::Io)?;
+            log::info!("Wrote STEP model: {}", step_path.display());
+        }
 
         Ok((wrl_path, step_path))
+    }
+
+    /// Write only VRML model (when STEP is not available)
+    pub fn write_wrl_model(&self, model_name: &str, wrl_data: &str) -> Result<PathBuf> {
+        let shapes_dir = self.output_path.join("e2k.3dshapes");
+
+        // Write VRML file
+        let wrl_path = shapes_dir.join(format!("{}.wrl", model_name));
+        fs::write(&wrl_path, wrl_data)
+            .map_err(KicadError::Io)?;
+
+        log::info!("Wrote VRML model: {}", wrl_path.display());
+
+        Ok(wrl_path)
     }
 
     /// Get the symbol library path

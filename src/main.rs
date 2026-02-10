@@ -27,15 +27,83 @@ fn run(args: Cli) -> error::Result<()> {
     // Validate arguments
     args.validate()?;
 
-    log::info!("Starting conversion for LCSC ID: {}", args.lcsc_id);
+    // Get list of LCSC IDs to process
+    let lcsc_ids = args.get_lcsc_ids()?;
+    let total_count = lcsc_ids.len();
+    let is_batch = total_count > 1;
+
+    if is_batch {
+        log::info!("Batch mode: processing {} components", total_count);
+    }
 
     // Setup output directories
     let lib_manager = LibraryManager::new(&args.output);
     lib_manager.create_directories()?;
 
-    // Fetch component data from EasyEDA API
+    // Initialize API
     let api = EasyedaApi::new();
-    let component_data = api.get_component_data(&args.lcsc_id)?;
+
+    // Track statistics
+    let mut success_count = 0;
+    let mut failed_count = 0;
+    let mut failed_ids = Vec::new();
+
+    // Process each LCSC ID
+    for (index, lcsc_id) in lcsc_ids.iter().enumerate() {
+        if is_batch {
+            println!("\n[{}/{}] Processing: {}", index + 1, total_count, lcsc_id);
+        } else {
+            log::info!("Starting conversion for LCSC ID: {}", lcsc_id);
+        }
+
+        // Process single component
+        match process_component(&args, &api, &lib_manager, lcsc_id) {
+            Ok(_) => {
+                success_count += 1;
+                if is_batch {
+                    println!("✓ Success: {}", lcsc_id);
+                }
+            }
+            Err(e) => {
+                failed_count += 1;
+                failed_ids.push(lcsc_id.clone());
+
+                if args.continue_on_error {
+                    eprintln!("✗ Failed: {} - {}", lcsc_id, e);
+                    log::error!("Failed to process {}: {}", lcsc_id, e);
+                } else {
+                    return Err(e);
+                }
+            }
+        }
+    }
+
+    // Print summary for batch mode
+    if is_batch {
+        println!("\n{}", "=".repeat(60));
+        println!("Batch conversion complete!");
+        println!("Total: {} | Success: {} | Failed: {}", total_count, success_count, failed_count);
+
+        if !failed_ids.is_empty() {
+            println!("\nFailed components:");
+            for id in &failed_ids {
+                println!("  - {}", id);
+            }
+        }
+
+        println!("Output directory: {}", args.output.display());
+        println!("{}", "=".repeat(60));
+    } else {
+        println!("\n✓ Conversion complete!");
+        println!("Output directory: {}", args.output.display());
+    }
+
+    Ok(())
+}
+
+fn process_component(args: &Cli, api: &EasyedaApi, lib_manager: &LibraryManager, lcsc_id: &str) -> error::Result<()> {
+    // Fetch component data from EasyEDA API
+    let component_data = api.get_component_data(lcsc_id)?;
 
     log::info!("Fetched component: {}", component_data.title);
 
@@ -670,20 +738,22 @@ fn run(args: Cli) -> error::Result<()> {
             // Try to download 3D models, but don't fail if they're not available
             match api.download_3d_obj(&model_info.uuid) {
                 Ok(obj_data) => {
+                    let exporter = ModelExporter::new();
+                    let wrl_data = exporter.obj_to_wrl(&obj_data)?;
+                    let model_name = sanitize_name(&model_info.title);
+
+                    // Try to download STEP, but continue even if it fails
                     match api.download_3d_step(&model_info.uuid) {
                         Ok(step_data) => {
-                            let exporter = ModelExporter::new();
-                            let wrl_data = exporter.obj_to_wrl(&obj_data)?;
                             let step_data = exporter.export_step(&step_data)?;
-
-                            let model_name = sanitize_name(&model_info.title);
                             lib_manager.write_3d_model(&model_name, &wrl_data, &step_data)?;
-
-                            println!("✓ 3D model converted: {}", model_name);
+                            println!("✓ 3D model converted: {} (WRL + STEP)", model_name);
                         }
                         Err(e) => {
                             log::warn!("Failed to download STEP model: {}", e);
-                            println!("⚠ 3D model partially available (STEP download failed)");
+                            // Still save the WRL file even if STEP fails
+                            lib_manager.write_wrl_model(&model_name, &wrl_data)?;
+                            println!("✓ 3D model converted: {} (WRL only, STEP unavailable)", model_name);
                         }
                     }
                 }
@@ -696,9 +766,6 @@ fn run(args: Cli) -> error::Result<()> {
             log::warn!("No 3D model metadata available for this component");
         }
     }
-
-    println!("\n✓ Conversion complete!");
-    println!("Output directory: {}", args.output.display());
 
     Ok(())
 }
