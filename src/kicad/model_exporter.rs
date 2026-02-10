@@ -97,7 +97,8 @@ impl ModelExporter {
                         .map_err(|_| KicadError::ModelExport("Invalid vertex Y coordinate".to_string()))?;
                     let z = parts[3].parse::<f64>()
                         .map_err(|_| KicadError::ModelExport("Invalid vertex Z coordinate".to_string()))?;
-                    vertices.push((x, y, z));
+                    // Convert from mm to inches by dividing by 2.54
+                    vertices.push((x / 2.54, y / 2.54, z / 2.54));
                 }
             }
         }

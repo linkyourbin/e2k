@@ -395,9 +395,9 @@ fn run(args: Cli) -> error::Result<()> {
                 // Default to project-relative paths (KIPRJMOD) for easier setup
                 // Use --project-relative flag to force global paths if needed
                 let model_path = if args.project_relative {
-                    format!("${{KICAD6_3DMODEL_DIR}}/e2k.3dshapes/{}.wrl", sanitize_name(&model_info.title))
+                    format!("${{E2K/e2k.3dshapes/{}.wrl", sanitize_name(&model_info.title))
                 } else {
-                    format!("${{KIPRJMOD}}/e2k.3dshapes/{}.wrl", sanitize_name(&model_info.title))
+                    format!("${{E2K}}/e2k.3dshapes/{}.wrl", sanitize_name(&model_info.title))
                 };
 
                 ki_footprint.model_3d = Some(kicad::Ki3dModel {
