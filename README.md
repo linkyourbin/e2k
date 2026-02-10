@@ -1,30 +1,43 @@
 # e2k
 
-**Fast and reliable EasyEDA/LCSC to KiCad converter written in Rust**
+**Fast EasyEDA/LCSC to KiCad converter written in Rust**
 
-Convert EasyEDA and LCSC components to KiCad library formats with a single command.
+Convert EasyEDA and LCSC components to KiCad library formats with blazing fast parallel downloads.
 
 ## Features
 
-- ✅ Convert symbols to KiCad format (.kicad_sym or .lib)
-- ✅ Convert footprints to KiCad format (.kicad_mod)
-- ✅ Convert 3D models (OBJ to VRML, STEP passthrough)
-- ✅ Support for KiCad v5.x (legacy) and v6.x/v7.x formats
-- ✅ Fast Rust implementation with low memory usage
-- ✅ Type-safe coordinate conversions
+- ✅ Convert symbols, footprints, and 3D models (STEP format)
+- ✅ Batch processing with parallel downloads (up to 45x faster)
+- ✅ Support for KiCad v5.x and v6.x/v7.x formats
 - ✅ Standalone binary - no dependencies required
+- ✅ Low memory usage (~20MB)
 
 ## Installation
 
-### From Source
+### Option 1: Download Pre-built Binary
+
+Download from [GitHub Releases](https://github.com/linkyourbin/e2k/releases):
+- Windows: `e2k-windows-x86_64.exe.zip`
+- Linux: `e2k-linux-x86_64.tar.gz`
+- macOS: `e2k-macos-x86_64.tar.gz` or `e2k-macos-aarch64.tar.gz`
+
+### Option 2: Install from crates.io
 
 ```bash
+cargo install e2k
+```
+
+### Option 3: Build from Source
+
+```bash
+git clone https://github.com/linkyourbin/e2k.git
+cd e2k
 cargo build --release
 ```
 
-The binary will be available at `target/release/e2k.exe` (Windows) or `target/release/e2k` (Linux/macOS).
-
 ## Quick Start
+
+### Single Component
 
 ```bash
 # Convert everything (symbol + footprint + 3D model)
@@ -32,138 +45,78 @@ e2k --full --lcsc-id C529356
 
 # Convert only symbol
 e2k --symbol --lcsc-id C529356
+```
 
-# Convert only footprint
-e2k --footprint --lcsc-id C529356
+### Batch Processing
 
-# Convert only 3D model
-e2k --3d --lcsc-id C529356
+```bash
+# Create a file with LCSC IDs (one per line)
+echo "C2040" > components.txt
+echo "C529356" >> components.txt
+
+# Batch convert with 8 parallel threads (fast!)
+e2k --full --batch components.txt --parallel 8
+
+# Continue on errors
+e2k --full --batch components.txt --parallel 8 --continue-on-error
 ```
 
 ## Usage
 
 ```
-e2k [OPTIONS] --lcsc-id <ID>
+e2k [OPTIONS]
 
 Options:
   --lcsc-id <ID>          LCSC component ID (e.g., C2040)
+  --batch <FILE>          Batch mode: read IDs from file
   --symbol                Convert symbol only
   --footprint             Convert footprint only
   --3d                    Convert 3D model only
-  --full                  Convert all (symbol + footprint + 3D model)
+  --full                  Convert all (symbol + footprint + 3D)
   -o, --output <PATH>     Output directory [default: .]
+  --parallel <N>          Parallel threads for batch mode [default: 4]
+  --continue-on-error     Skip failed components in batch mode
   --overwrite             Overwrite existing components
   --v5                    Use KiCad v5 legacy format
-  --project-relative      Use project-relative paths for 3D models
   --debug                 Enable debug logging
   -h, --help              Print help
-  -V, --version           Print version
+```
+
+## Performance
+
+**Batch processing with parallel downloads:**
+- 5 components: ~4 seconds (8 threads)
+- 100 components: ~3-5 minutes (8 threads)
+- Up to 45x faster than sequential processing
+
+## Output Structure
+
+```
+output/
+├── e2k.kicad_sym              # Symbol library
+├── e2k.pretty/                # Footprint library
+│   └── Component_Name.kicad_mod
+└── e2k.3dshapes/              # 3D model library
+    └── Component_Name.step
 ```
 
 ## Examples
 
 ```bash
-# Convert with custom output directory
-e2k --full --lcsc-id C529356 -o ./my_library
+# High-performance batch conversion
+e2k --full --batch components.txt --parallel 16 -o ./library
 
-# Use KiCad v5 legacy format
+# Resume interrupted batch (skip existing)
+e2k --full --batch components.txt --continue-on-error
+
+# KiCad v5 format
 e2k --full --lcsc-id C529356 --v5
-
-# Overwrite existing component
-e2k --symbol --lcsc-id C529356 --overwrite
-
-# Enable debug logging
-e2k --full --lcsc-id C529356 --debug
-```
-
-## Output Structure
-
-```
-output_directory/
-├── e2k.kicad_sym              # Symbol library (v6 format)
-├── e2k.lib                    # Symbol library (v5 format, if --v5)
-├── e2k.pretty/                # Footprint library
-│   └── Component_Name.kicad_mod
-└── e2k.3dshapes/              # 3D model library
-    ├── Component_Name.wrl     # VRML format
-    └── Component_Name.step    # STEP format
-```
-
-## Performance
-
-- **Fast**: Native compiled code with minimal overhead
-- **Efficient**: Low memory usage (~20MB)
-- **Reliable**: Type-safe conversions prevent runtime errors
-
-## Comparison with Python Version
-
-| Feature | Python | e2k (Rust) |
-|---------|--------|------------|
-| Symbol conversion | ✅ | ✅ |
-| Footprint conversion | ✅ | ✅ |
-| 3D model conversion | ✅ | ✅ |
-| KiCad v5 support | ✅ | ✅ |
-| KiCad v6/v7 support | ✅ | ✅ |
-| Performance | Good | Excellent |
-| Memory usage | ~50MB | ~20MB |
-| Dependencies | Python + packages | None (standalone) |
-| Type safety | Runtime | Compile-time |
-| Binary size | N/A | 7.1MB |
-
-## Development
-
-### Build
-
-```bash
-cargo build
-```
-
-### Run Tests
-
-```bash
-cargo test
-```
-
-### Run with Logging
-
-```bash
-RUST_LOG=debug cargo run -- --full --lcsc-id C529356
-```
-
-## Architecture
-
-```
-e2k/
-├── src/
-│   ├── main.rs                      # CLI entry point
-│   ├── lib.rs                       # Library root
-│   ├── cli.rs                       # Command-line parsing
-│   ├── error.rs                     # Error types
-│   ├── converter.rs                 # Coordinate/unit conversions
-│   ├── library.rs                   # Library file management
-│   ├── easyeda/
-│   │   ├── api.rs                   # EasyEDA API client
-│   │   ├── importer.rs              # Data importers
-│   │   ├── models.rs                # Data structures
-│   │   └── svg_parser.rs            # SVG path parsing
-│   └── kicad/
-│       ├── symbol.rs                # Symbol structures
-│       ├── footprint.rs             # Footprint structures
-│       ├── symbol_exporter.rs       # Symbol export
-│       ├── footprint_exporter.rs    # Footprint export
-│       └── model_exporter.rs        # 3D model export
-└── tests/
-    └── integration_tests.rs
 ```
 
 ## License
 
 MIT License - See LICENSE file for details
 
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
 ## Credits
 
-Based on the original [easyeda2kicad](https://github.com/uPesy/easyeda2kicad.py) Python implementation.
+Based on [easyeda2kicad](https://github.com/uPesy/easyeda2kicad.py) Python implementation.
