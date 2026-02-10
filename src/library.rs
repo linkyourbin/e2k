@@ -182,6 +182,20 @@ impl LibraryManager {
         Ok(wrl_path)
     }
 
+    /// Write only STEP model
+    pub fn write_step_model(&self, model_name: &str, step_data: &[u8]) -> Result<PathBuf> {
+        let shapes_dir = self.output_path.join("e2k.3dshapes");
+
+        // Write STEP file
+        let step_path = shapes_dir.join(format!("{}.step", model_name));
+        fs::write(&step_path, step_data)
+            .map_err(KicadError::Io)?;
+
+        log::info!("Wrote STEP model: {}", step_path.display());
+
+        Ok(step_path)
+    }
+
     /// Get the symbol library path
     pub fn get_symbol_lib_path(&self, v5: bool) -> PathBuf {
         if v5 {

@@ -1,6 +1,8 @@
 use clap::Parser;
 use e2k::*;
 use std::process;
+use std::sync::{Arc, Mutex};
+use rayon::prelude::*;
 
 fn main() {
     // Initialize logger
@@ -34,6 +36,9 @@ fn run(args: Cli) -> error::Result<()> {
 
     if is_batch {
         log::info!("Batch mode: processing {} components", total_count);
+        if args.parallel > 1 {
+            log::info!("Parallel downloads: {} threads", args.parallel);
+        }
     }
 
     // Setup output directories
@@ -44,49 +49,83 @@ fn run(args: Cli) -> error::Result<()> {
     let api = EasyedaApi::new();
 
     // Track statistics
-    let mut success_count = 0;
-    let mut failed_count = 0;
-    let mut failed_ids = Vec::new();
+    let success_count = Arc::new(Mutex::new(0));
+    let failed_count = Arc::new(Mutex::new(0));
+    let failed_ids = Arc::new(Mutex::new(Vec::new()));
 
-    // Process each LCSC ID
-    for (index, lcsc_id) in lcsc_ids.iter().enumerate() {
-        if is_batch {
-            println!("\n[{}/{}] Processing: {}", index + 1, total_count, lcsc_id);
-        } else {
-            log::info!("Starting conversion for LCSC ID: {}", lcsc_id);
-        }
+    if is_batch && args.parallel > 1 {
+        // Parallel processing mode
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(args.parallel)
+            .build()
+            .unwrap()
+            .install(|| {
+                lcsc_ids.par_iter().enumerate().for_each(|(index, lcsc_id)| {
+                    println!("\n[{}/{}] Processing: {}", index + 1, total_count, lcsc_id);
 
-        // Process single component
-        match process_component(&args, &api, &lib_manager, lcsc_id) {
-            Ok(_) => {
-                success_count += 1;
-                if is_batch {
-                    println!("✓ Success: {}", lcsc_id);
-                }
+                    // Process single component
+                    match process_component(&args, &api, &lib_manager, lcsc_id) {
+                        Ok(_) => {
+                            *success_count.lock().unwrap() += 1;
+                            println!("✓ [{}/{}] Success: {}", index + 1, total_count, lcsc_id);
+                        }
+                        Err(e) => {
+                            *failed_count.lock().unwrap() += 1;
+                            failed_ids.lock().unwrap().push(lcsc_id.clone());
+
+                            if args.continue_on_error {
+                                eprintln!("✗ [{}/{}] Failed: {} - {}", index + 1, total_count, lcsc_id, e);
+                                log::error!("Failed to process {}: {}", lcsc_id, e);
+                            }
+                        }
+                    }
+                });
+            });
+    } else {
+        // Sequential processing mode
+        for (index, lcsc_id) in lcsc_ids.iter().enumerate() {
+            if is_batch {
+                println!("\n[{}/{}] Processing: {}", index + 1, total_count, lcsc_id);
+            } else {
+                log::info!("Starting conversion for LCSC ID: {}", lcsc_id);
             }
-            Err(e) => {
-                failed_count += 1;
-                failed_ids.push(lcsc_id.clone());
 
-                if args.continue_on_error {
-                    eprintln!("✗ Failed: {} - {}", lcsc_id, e);
-                    log::error!("Failed to process {}: {}", lcsc_id, e);
-                } else {
-                    return Err(e);
+            // Process single component
+            match process_component(&args, &api, &lib_manager, lcsc_id) {
+                Ok(_) => {
+                    *success_count.lock().unwrap() += 1;
+                    if is_batch {
+                        println!("✓ Success: {}", lcsc_id);
+                    }
+                }
+                Err(e) => {
+                    *failed_count.lock().unwrap() += 1;
+                    failed_ids.lock().unwrap().push(lcsc_id.clone());
+
+                    if args.continue_on_error {
+                        eprintln!("✗ Failed: {} - {}", lcsc_id, e);
+                        log::error!("Failed to process {}: {}", lcsc_id, e);
+                    } else {
+                        return Err(e);
+                    }
                 }
             }
         }
     }
 
+    let success = *success_count.lock().unwrap();
+    let failed = *failed_count.lock().unwrap();
+    let failed_list = failed_ids.lock().unwrap().clone();
+
     // Print summary for batch mode
     if is_batch {
         println!("\n{}", "=".repeat(60));
         println!("Batch conversion complete!");
-        println!("Total: {} | Success: {} | Failed: {}", total_count, success_count, failed_count);
+        println!("Total: {} | Success: {} | Failed: {}", total_count, success, failed);
 
-        if !failed_ids.is_empty() {
+        if !failed_list.is_empty() {
             println!("\nFailed components:");
-            for id in &failed_ids {
+            for id in &failed_list {
                 println!("  - {}", id);
             }
         }
@@ -735,31 +774,24 @@ fn process_component(args: &Cli, api: &EasyedaApi, lib_manager: &LibraryManager,
         if let Some(model_info) = &component_data.model_3d {
             log::info!("Converting 3D model...");
 
-            // Try to download 3D models, but don't fail if they're not available
-            match api.download_3d_obj(&model_info.uuid) {
-                Ok(obj_data) => {
+            // Only download STEP format (skip OBJ/WRL conversion)
+            match api.download_3d_step(&model_info.uuid) {
+                Ok(step_data) => {
                     let exporter = ModelExporter::new();
-                    let wrl_data = exporter.obj_to_wrl(&obj_data)?;
-                    let model_name = sanitize_name(&model_info.title);
-
-                    // Try to download STEP, but continue even if it fails
-                    match api.download_3d_step(&model_info.uuid) {
+                    match exporter.export_step(&step_data) {
                         Ok(step_data) => {
-                            let step_data = exporter.export_step(&step_data)?;
-                            lib_manager.write_3d_model(&model_name, &wrl_data, &step_data)?;
-                            println!("✓ 3D model converted: {} (WRL + STEP)", model_name);
+                            let model_name = sanitize_name(&model_info.title);
+                            match lib_manager.write_step_model(&model_name, &step_data) {
+                                Ok(_) => println!("✓ 3D model converted: {} (STEP)", model_name),
+                                Err(e) => log::warn!("Failed to write STEP model: {}", e),
+                            }
                         }
-                        Err(e) => {
-                            log::warn!("Failed to download STEP model: {}", e);
-                            // Still save the WRL file even if STEP fails
-                            lib_manager.write_wrl_model(&model_name, &wrl_data)?;
-                            println!("✓ 3D model converted: {} (WRL only, STEP unavailable)", model_name);
-                        }
+                        Err(e) => log::warn!("Failed to export STEP model: {}", e),
                     }
                 }
                 Err(e) => {
-                    log::warn!("Failed to download OBJ model: {}", e);
-                    println!("⚠ 3D model not available (files not found on server)");
+                    log::warn!("Failed to download STEP model: {}", e);
+                    println!("⚠ 3D model not available");
                 }
             }
         } else {

@@ -54,6 +54,10 @@ pub struct Cli {
     /// Continue on error in batch mode (skip failed components)
     #[arg(long)]
     pub continue_on_error: bool,
+
+    /// Number of parallel downloads in batch mode (default: 4)
+    #[arg(long, default_value = "4")]
+    pub parallel: usize,
 }
 
 impl Cli {
