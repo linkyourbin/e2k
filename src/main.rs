@@ -392,10 +392,12 @@ fn run(args: Cli) -> error::Result<()> {
         // Add 3D model reference if available
         if let Some(model_info) = &component_data.model_3d {
             if args.model_3d || args.full {
+                // Default to project-relative paths (KIPRJMOD) for easier setup
+                // Use --project-relative flag to force global paths if needed
                 let model_path = if args.project_relative {
-                    format!("${{KIPRJMOD}}/e2k.3dshapes/{}.wrl", sanitize_name(&model_info.title))
-                } else {
                     format!("${{KICAD6_3DMODEL_DIR}}/e2k.3dshapes/{}.wrl", sanitize_name(&model_info.title))
+                } else {
+                    format!("${{KIPRJMOD}}/e2k.3dshapes/{}.wrl", sanitize_name(&model_info.title))
                 };
 
                 ki_footprint.model_3d = Some(kicad::Ki3dModel {

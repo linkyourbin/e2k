@@ -39,7 +39,7 @@ pub struct Cli {
     #[arg(long)]
     pub v5: bool,
 
-    /// Use project-relative paths for 3D models
+    /// Use global paths (KICAD6_3DMODEL_DIR) instead of project-relative paths (KIPRJMOD) for 3D models
     #[arg(long)]
     pub project_relative: bool,
 
