@@ -154,6 +154,7 @@ pub struct EePad {
     pub rotation: f64,
     pub hole_radius: Option<f64>,
     pub hole_length: Option<f64>,  // For elliptical drills
+    pub points: String,  // For polygon pads
     pub layer_id: i32,
 }
 

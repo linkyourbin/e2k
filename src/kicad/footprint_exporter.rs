@@ -106,6 +106,11 @@ impl FootprintExporter {
             }
         }
 
+        // Polygon (for custom pads)
+        if let Some(polygon) = &pad.polygon {
+            output.push_str(polygon);
+        }
+
         output.push_str(")\n");
 
         output

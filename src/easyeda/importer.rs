@@ -526,6 +526,13 @@ impl FootprintImporter {
             None
         };
 
+        // Field 10 is points (for polygon pads)
+        let points = if fields.len() > 10 {
+            fields[10].to_string()
+        } else {
+            String::new()
+        };
+
         // Field 11 is rotation
         let rotation = if fields.len() > 11 {
             fields[11].parse::<f64>().unwrap_or(0.0)
@@ -551,6 +558,7 @@ impl FootprintImporter {
             rotation,
             hole_radius,
             hole_length,
+            points,
             layer_id,
         })
     }

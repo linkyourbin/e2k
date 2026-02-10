@@ -74,6 +74,7 @@ pub struct KiPad {
     pub rotation: f64,
     pub layers: Vec<String>,
     pub drill: Option<Drill>,
+    pub polygon: Option<String>,  // For custom polygon pads
 }
 
 #[derive(Debug, Clone)]

@@ -262,17 +262,49 @@ fn run(args: Cli) -> error::Result<()> {
             let adjusted_x = ee_pad.x - component_data.package_bbox_x;
             let adjusted_y = ee_pad.y - component_data.package_bbox_y;
 
+            // Handle polygon pads
+            let (size_x, size_y, rotation, polygon) = if ee_pad.shape == "POLYGON" && !ee_pad.points.is_empty() {
+                // Parse points: space-separated x y coordinates
+                let coords: Vec<f64> = ee_pad.points
+                    .split_whitespace()
+                    .filter_map(|s| s.parse::<f64>().ok())
+                    .collect();
+
+                if coords.len() >= 4 {  // At least 2 points (x,y pairs)
+                    // Generate polygon with coordinates relative to pad position
+                    let mut poly_str = String::from("\n\t\t(primitives \n\t\t\t(gr_poly \n\t\t\t\t(pts");
+
+                    for i in (0..coords.len()).step_by(2) {
+                        if i + 1 < coords.len() {
+                            let rel_x = coords[i] - component_data.package_bbox_x - adjusted_x;
+                            let rel_y = coords[i + 1] - component_data.package_bbox_y - adjusted_y;
+                            poly_str.push_str(&format!(" (xy {:.2} {:.2})", rel_x, rel_y));
+                        }
+                    }
+
+                    poly_str.push_str("\n\t\t\t\t) \n\t\t\t\t(width 0.1) \n\t\t\t)\n\t\t)\n\t");
+
+                    // Set minimal pad size and force orientation to 0
+                    (0.005, 0.005, 0.0, Some(poly_str))
+                } else {
+                    (ee_pad.width, ee_pad.height, ee_pad.rotation, None)
+                }
+            } else {
+                (ee_pad.width, ee_pad.height, ee_pad.rotation, None)
+            };
+
             ki_footprint.pads.push(kicad::KiPad {
                 number: ee_pad.number.clone(),
                 pad_type,
                 shape: kicad::PadShape::from_easyeda(&ee_pad.shape),
                 pos_x: adjusted_x,
                 pos_y: adjusted_y,
-                size_x: ee_pad.width,
-                size_y: ee_pad.height,
-                rotation: ee_pad.rotation,
+                size_x,
+                size_y,
+                rotation,
                 layers,
                 drill,
+                polygon,
             });
         }
 
