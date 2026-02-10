@@ -271,7 +271,7 @@ impl SymbolExporter {
         let y1 = self.converter.px_to_mm(rect.y1);
         let x2 = self.converter.px_to_mm(rect.x2);
         let y2 = self.converter.px_to_mm(rect.y2);
-        let width = self.converter.px_to_mm(rect.stroke_width);
+        let _width = self.converter.px_to_mm(rect.stroke_width);
 
         let fill = if rect.fill { "background" } else { "none" };
 

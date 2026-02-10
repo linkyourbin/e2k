@@ -152,6 +152,46 @@ fn run(args: Cli) -> error::Result<()> {
             });
         }
 
+        // Convert arcs with bbox adjustment
+        // EeArc has center (x, y), radius, start_angle, end_angle
+        // KiArc needs start, mid, and end points
+        for ee_arc in &ee_symbol.arcs {
+            // Convert angles from degrees to radians
+            let start_angle_rad = ee_arc.start_angle.to_radians();
+            let end_angle_rad = ee_arc.end_angle.to_radians();
+
+            // Calculate start point
+            let start_x = ee_arc.x + ee_arc.radius * start_angle_rad.cos();
+            let start_y = ee_arc.y + ee_arc.radius * start_angle_rad.sin();
+
+            // Calculate end point
+            let end_x = ee_arc.x + ee_arc.radius * end_angle_rad.cos();
+            let end_y = ee_arc.y + ee_arc.radius * end_angle_rad.sin();
+
+            // Calculate midpoint angle (halfway between start and end)
+            let mid_angle_rad = (start_angle_rad + end_angle_rad) / 2.0;
+            let mid_x = ee_arc.x + ee_arc.radius * mid_angle_rad.cos();
+            let mid_y = ee_arc.y + ee_arc.radius * mid_angle_rad.sin();
+
+            // Apply bbox adjustment
+            let adjusted_start_x = start_x - component_data.bbox_x;
+            let adjusted_start_y = component_data.bbox_y - start_y;
+            let adjusted_mid_x = mid_x - component_data.bbox_x;
+            let adjusted_mid_y = component_data.bbox_y - mid_y;
+            let adjusted_end_x = end_x - component_data.bbox_x;
+            let adjusted_end_y = component_data.bbox_y - end_y;
+
+            ki_symbol.arcs.push(kicad::SymbolKiArc {
+                start_x: adjusted_start_x,
+                start_y: adjusted_start_y,
+                mid_x: adjusted_mid_x,
+                mid_y: adjusted_mid_y,
+                end_x: adjusted_end_x,
+                end_y: adjusted_end_y,
+                stroke_width: ee_arc.stroke_width,
+            });
+        }
+
         // Convert polylines with bbox adjustment
         for ee_polyline in &ee_symbol.polylines {
             let adjusted_points: Vec<(f64, f64)> = ee_polyline.points.iter()
@@ -169,8 +209,25 @@ fn run(args: Cli) -> error::Result<()> {
             });
         }
 
+        // Convert polygons to polylines with bbox adjustment
+        for ee_polygon in &ee_symbol.polygons {
+            let adjusted_points: Vec<(f64, f64)> = ee_polygon.points.iter()
+                .map(|(x, y)| {
+                    let adj_x = x - component_data.bbox_x;
+                    let adj_y = component_data.bbox_y - y;  // bbox_y - pos_y
+                    (adj_x, adj_y)  // No negation
+                })
+                .collect();
+
+            ki_symbol.polylines.push(kicad::KiPolyline {
+                points: adjusted_points,
+                stroke_width: ee_polygon.stroke_width,
+                fill: ee_polygon.fill,
+            });
+        }
+
         // Convert paths to polylines with bbox adjustment
-        // Parse SVG path commands (M, L) and convert to polylines
+        // Parse SVG path commands (M, L, Z) and convert to polylines
         for ee_path in &ee_symbol.paths {
             let path_str = &ee_path.path_data;
             let tokens: Vec<&str> = path_str.split_whitespace().collect();
@@ -201,6 +258,13 @@ fn run(args: Cli) -> error::Result<()> {
                                     i += 1;
                                 }
                             }
+                        }
+                    }
+                    "Z" | "z" => {
+                        // Close path: add line from current point back to start point
+                        if !points.is_empty() {
+                            let first_point = points[0];
+                            points.push(first_point);
                         }
                     }
                     _ => {}
@@ -357,20 +421,39 @@ fn run(args: Cli) -> error::Result<()> {
         }
 
         // Convert tracks to lines with bbox adjustment
+        // TRACK has a points string: "x1 y1 x2 y2 x3 y3..." which represents a polyline
+        // We need to convert it to multiple line segments
         for ee_track in &ee_footprint.tracks {
-            let adjusted_x1 = ee_track.x1 - component_data.package_bbox_x;
-            let adjusted_y1 = ee_track.y1 - component_data.package_bbox_y;
-            let adjusted_x2 = ee_track.x2 - component_data.package_bbox_x;
-            let adjusted_y2 = ee_track.y2 - component_data.package_bbox_y;
+            // Parse points string into coordinates
+            let coords: Vec<f64> = ee_track.points
+                .split_whitespace()
+                .filter_map(|s| s.parse::<f64>().ok())
+                .collect();
 
-            ki_footprint.lines.push(kicad::KiLine {
-                start_x: adjusted_x1,
-                start_y: adjusted_y1,
-                end_x: adjusted_x2,
-                end_y: adjusted_y2,
-                width: ee_track.width,
-                layer: kicad::map_layer(ee_track.layer_id),
-            });
+            // Create line segments from consecutive point pairs
+            // Each pair of points (x1,y1) -> (x2,y2) becomes one line
+            for i in (0..coords.len().saturating_sub(2)).step_by(2) {
+                if i + 3 < coords.len() {
+                    let x1 = coords[i];
+                    let y1 = coords[i + 1];
+                    let x2 = coords[i + 2];
+                    let y2 = coords[i + 3];
+
+                    let adjusted_x1 = x1 - component_data.package_bbox_x;
+                    let adjusted_y1 = y1 - component_data.package_bbox_y;
+                    let adjusted_x2 = x2 - component_data.package_bbox_x;
+                    let adjusted_y2 = y2 - component_data.package_bbox_y;
+
+                    ki_footprint.lines.push(kicad::KiLine {
+                        start_x: adjusted_x1,
+                        start_y: adjusted_y1,
+                        end_x: adjusted_x2,
+                        end_y: adjusted_y2,
+                        width: ee_track.stroke_width,
+                        layer: kicad::map_layer(ee_track.layer_id),
+                    });
+                }
+            }
         }
 
         // Convert circles with bbox adjustment
@@ -386,6 +469,168 @@ fn run(args: Cli) -> error::Result<()> {
                 width: ee_circle.stroke_width,
                 layer: "F.SilkS".to_string(),
                 fill: ee_circle.fill,
+            });
+        }
+
+        // Convert holes to non-plated through-hole pads
+        for ee_hole in &ee_footprint.holes {
+            let adjusted_x = ee_hole.x - component_data.package_bbox_x;
+            let adjusted_y = ee_hole.y - component_data.package_bbox_y;
+
+            // EasyEDA stores radius, so diameter = radius * 2
+            let diameter = ee_hole.radius * 2.0;
+
+            ki_footprint.pads.push(kicad::KiPad {
+                number: String::new(),  // Empty number for non-plated holes
+                pad_type: kicad::PadType::NpThroughHole,
+                shape: kicad::PadShape::Circle,
+                pos_x: adjusted_x,
+                pos_y: adjusted_y,
+                size_x: diameter,
+                size_y: diameter,
+                rotation: 0.0,
+                layers: vec!["*.Cu".to_string(), "*.Mask".to_string()],
+                drill: Some(kicad::Drill {
+                    diameter,
+                    width: None,
+                    offset_x: 0.0,
+                    offset_y: 0.0,
+                }),
+                polygon: None,
+            });
+        }
+
+        // Convert vias to through-hole pads
+        for ee_via in &ee_footprint.vias {
+            let adjusted_x = ee_via.x - component_data.package_bbox_x;
+            let adjusted_y = ee_via.y - component_data.package_bbox_y;
+
+            // Via has diameter (pad size) and radius (hole radius, so drill = radius * 2)
+            let pad_size = ee_via.diameter;
+            let drill_diameter = ee_via.radius * 2.0;
+
+            ki_footprint.pads.push(kicad::KiPad {
+                number: String::new(),  // Vias typically don't have pad numbers
+                pad_type: kicad::PadType::ThroughHole,
+                shape: kicad::PadShape::Circle,
+                pos_x: adjusted_x,
+                pos_y: adjusted_y,
+                size_x: pad_size,
+                size_y: pad_size,
+                rotation: 0.0,
+                layers: vec!["*.Cu".to_string(), "*.Mask".to_string()],
+                drill: Some(kicad::Drill {
+                    diameter: drill_diameter,
+                    width: None,
+                    offset_x: 0.0,
+                    offset_y: 0.0,
+                }),
+                polygon: None,
+            });
+        }
+
+        // Convert arcs with bbox adjustment
+        for ee_arc in &ee_footprint.arcs {
+            // Convert angles from degrees to radians
+            let start_angle_rad = ee_arc.start_angle.to_radians();
+            let end_angle_rad = ee_arc.end_angle.to_radians();
+
+            // Calculate start point
+            let start_x = ee_arc.x + ee_arc.radius * start_angle_rad.cos();
+            let start_y = ee_arc.y + ee_arc.radius * start_angle_rad.sin();
+
+            // Calculate end point
+            let end_x = ee_arc.x + ee_arc.radius * end_angle_rad.cos();
+            let end_y = ee_arc.y + ee_arc.radius * end_angle_rad.sin();
+
+            // Calculate midpoint angle (halfway between start and end)
+            let mid_angle_rad = (start_angle_rad + end_angle_rad) / 2.0;
+            let mid_x = ee_arc.x + ee_arc.radius * mid_angle_rad.cos();
+            let mid_y = ee_arc.y + ee_arc.radius * mid_angle_rad.sin();
+
+            // Apply bbox adjustment
+            let adjusted_start_x = start_x - component_data.package_bbox_x;
+            let adjusted_start_y = start_y - component_data.package_bbox_y;
+            let adjusted_mid_x = mid_x - component_data.package_bbox_x;
+            let adjusted_mid_y = mid_y - component_data.package_bbox_y;
+            let adjusted_end_x = end_x - component_data.package_bbox_x;
+            let adjusted_end_y = end_y - component_data.package_bbox_y;
+
+            ki_footprint.arcs.push(kicad::FootprintKiArc {
+                start_x: adjusted_start_x,
+                start_y: adjusted_start_y,
+                mid_x: adjusted_mid_x,
+                mid_y: adjusted_mid_y,
+                end_x: adjusted_end_x,
+                end_y: adjusted_end_y,
+                width: ee_arc.stroke_width,
+                layer: "F.SilkS".to_string(),
+            });
+        }
+
+        // Convert rectangles to 4 lines
+        for ee_rect in &ee_footprint.rectangles {
+            let adjusted_x = ee_rect.x - component_data.package_bbox_x;
+            let adjusted_y = ee_rect.y - component_data.package_bbox_y;
+            let adjusted_x2 = (ee_rect.x + ee_rect.width) - component_data.package_bbox_x;
+            let adjusted_y2 = (ee_rect.y + ee_rect.height) - component_data.package_bbox_y;
+
+            let layer = "F.SilkS".to_string();
+
+            // Top line
+            ki_footprint.lines.push(kicad::KiLine {
+                start_x: adjusted_x,
+                start_y: adjusted_y,
+                end_x: adjusted_x2,
+                end_y: adjusted_y,
+                width: ee_rect.stroke_width,
+                layer: layer.clone(),
+            });
+
+            // Right line
+            ki_footprint.lines.push(kicad::KiLine {
+                start_x: adjusted_x2,
+                start_y: adjusted_y,
+                end_x: adjusted_x2,
+                end_y: adjusted_y2,
+                width: ee_rect.stroke_width,
+                layer: layer.clone(),
+            });
+
+            // Bottom line
+            ki_footprint.lines.push(kicad::KiLine {
+                start_x: adjusted_x2,
+                start_y: adjusted_y2,
+                end_x: adjusted_x,
+                end_y: adjusted_y2,
+                width: ee_rect.stroke_width,
+                layer: layer.clone(),
+            });
+
+            // Left line
+            ki_footprint.lines.push(kicad::KiLine {
+                start_x: adjusted_x,
+                start_y: adjusted_y2,
+                end_x: adjusted_x,
+                end_y: adjusted_y,
+                width: ee_rect.stroke_width,
+                layer,
+            });
+        }
+
+        // Convert texts with bbox adjustment
+        for ee_text in &ee_footprint.texts {
+            let adjusted_x = ee_text.x - component_data.package_bbox_x;
+            let adjusted_y = ee_text.y - component_data.package_bbox_y;
+
+            ki_footprint.texts.push(kicad::KiText {
+                text: ee_text.text.clone(),
+                pos_x: adjusted_x,
+                pos_y: adjusted_y,
+                rotation: ee_text.rotation as f64,
+                layer: "F.SilkS".to_string(),
+                size: ee_text.font_size,
+                thickness: 0.15,
             });
         }
 

@@ -15,7 +15,20 @@ impl ModelExporter {
         // Parse OBJ file
         let vertices = self.parse_obj_vertices(&obj_str)?;
         let faces = self.parse_obj_faces(&obj_str)?;
-        let _materials = self.parse_obj_materials(&obj_str);
+        let materials = self.parse_obj_materials(&obj_str);
+
+        // Optimize vertices (remove duplicates)
+        let (optimized_vertices, optimized_faces) = self.optimize_vertices(&vertices, &faces);
+
+        // Get material properties (use first material or default)
+        let material = materials.values().next().cloned().unwrap_or_else(|| Material {
+            name: "default".to_string(),
+            ambient: (0.2, 0.2, 0.2),
+            diffuse: (0.8, 0.8, 0.8),
+            specular: (0.5, 0.5, 0.5),
+            shininess: 0.5,
+            transparency: 1.0,
+        });
 
         // Generate VRML output
         let mut output = String::new();
@@ -28,9 +41,14 @@ impl ModelExporter {
         output.push_str("Shape {\n");
         output.push_str("  appearance Appearance {\n");
         output.push_str("    material Material {\n");
-        output.push_str("      diffuseColor 0.8 0.8 0.8\n");
-        output.push_str("      specularColor 0.5 0.5 0.5\n");
-        output.push_str("      shininess 0.5\n");
+        output.push_str(&format!("      ambientIntensity {:.2}\n",
+            (material.ambient.0 + material.ambient.1 + material.ambient.2) / 3.0));
+        output.push_str(&format!("      diffuseColor {:.2} {:.2} {:.2}\n",
+            material.diffuse.0, material.diffuse.1, material.diffuse.2));
+        output.push_str(&format!("      specularColor {:.2} {:.2} {:.2}\n",
+            material.specular.0, material.specular.1, material.specular.2));
+        output.push_str(&format!("      shininess {:.2}\n", material.shininess));
+        output.push_str(&format!("      transparency {:.2}\n", 1.0 - material.transparency));
         output.push_str("    }\n");
         output.push_str("  }\n");
 
@@ -40,9 +58,9 @@ impl ModelExporter {
         output.push_str("      point [\n");
 
         // Write vertices
-        for (i, vertex) in vertices.iter().enumerate() {
+        for (i, vertex) in optimized_vertices.iter().enumerate() {
             output.push_str(&format!("        {:.6} {:.6} {:.6}", vertex.0, vertex.1, vertex.2));
-            if i < vertices.len() - 1 {
+            if i < optimized_vertices.len() - 1 {
                 output.push_str(",\n");
             } else {
                 output.push_str("\n");
@@ -54,7 +72,7 @@ impl ModelExporter {
 
         // Write faces
         output.push_str("    coordIndex [\n");
-        for (i, face) in faces.iter().enumerate() {
+        for (i, face) in optimized_faces.iter().enumerate() {
             output.push_str("      ");
             for (j, idx) in face.iter().enumerate() {
                 output.push_str(&format!("{}", idx));
@@ -63,7 +81,7 @@ impl ModelExporter {
                 }
             }
             output.push_str(", -1");
-            if i < faces.len() - 1 {
+            if i < optimized_faces.len() - 1 {
                 output.push_str(",\n");
             } else {
                 output.push_str("\n");
@@ -135,25 +153,120 @@ impl ModelExporter {
 
     fn parse_obj_materials(&self, obj: &str) -> HashMap<String, Material> {
         let mut materials = HashMap::new();
+        let mut current_material: Option<Material> = None;
 
-        // Simple material parsing (can be extended)
         for line in obj.lines() {
             let line = line.trim();
-            if line.starts_with("usemtl ") {
+
+            if line.starts_with("newmtl ") {
+                // Save previous material if exists
+                if let Some(mat) = current_material.take() {
+                    materials.insert(mat.name.clone(), mat);
+                }
+
+                // Start new material
                 let parts: Vec<&str> = line.split_whitespace().collect();
                 if parts.len() >= 2 {
-                    let name = parts[1].to_string();
-                    materials.insert(name.clone(), Material {
-                        name,
+                    current_material = Some(Material {
+                        name: parts[1].to_string(),
+                        ambient: (0.2, 0.2, 0.2),
                         diffuse: (0.8, 0.8, 0.8),
                         specular: (0.5, 0.5, 0.5),
                         shininess: 0.5,
+                        transparency: 1.0,
                     });
+                }
+            } else if let Some(ref mut mat) = current_material {
+                if line.starts_with("Ka ") {
+                    // Ambient color
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() >= 4 {
+                        if let (Ok(r), Ok(g), Ok(b)) = (
+                            parts[1].parse::<f64>(),
+                            parts[2].parse::<f64>(),
+                            parts[3].parse::<f64>()
+                        ) {
+                            mat.ambient = (r, g, b);
+                        }
+                    }
+                } else if line.starts_with("Kd ") {
+                    // Diffuse color
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() >= 4 {
+                        if let (Ok(r), Ok(g), Ok(b)) = (
+                            parts[1].parse::<f64>(),
+                            parts[2].parse::<f64>(),
+                            parts[3].parse::<f64>()
+                        ) {
+                            mat.diffuse = (r, g, b);
+                        }
+                    }
+                } else if line.starts_with("Ks ") {
+                    // Specular color
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() >= 4 {
+                        if let (Ok(r), Ok(g), Ok(b)) = (
+                            parts[1].parse::<f64>(),
+                            parts[2].parse::<f64>(),
+                            parts[3].parse::<f64>()
+                        ) {
+                            mat.specular = (r, g, b);
+                        }
+                    }
+                } else if line.starts_with("d ") {
+                    // Transparency (dissolve)
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() >= 2 {
+                        if let Ok(d) = parts[1].parse::<f64>() {
+                            mat.transparency = d;
+                        }
+                    }
+                } else if line.starts_with("Ns ") {
+                    // Shininess (specular exponent)
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() >= 2 {
+                        if let Ok(ns) = parts[1].parse::<f64>() {
+                            // Convert from OBJ range (0-1000) to VRML range (0-1)
+                            mat.shininess = (ns / 1000.0).min(1.0);
+                        }
+                    }
                 }
             }
         }
 
+        // Save last material
+        if let Some(mat) = current_material {
+            materials.insert(mat.name.clone(), mat);
+        }
+
         materials
+    }
+
+    fn optimize_vertices(&self, vertices: &[(f64, f64, f64)], faces: &[Vec<i32>])
+        -> (Vec<(f64, f64, f64)>, Vec<Vec<i32>>) {
+        let mut link_dict: HashMap<i32, usize> = HashMap::new();
+        let mut new_vertices = Vec::new();
+        let mut new_faces = Vec::new();
+
+        for face in faces {
+            let mut new_face = Vec::new();
+            for &idx in face {
+                let new_idx = *link_dict.entry(idx).or_insert_with(|| {
+                    let idx_usize = idx as usize;
+                    if idx_usize < vertices.len() {
+                        let new_idx = new_vertices.len();
+                        new_vertices.push(vertices[idx_usize]);
+                        new_idx
+                    } else {
+                        0
+                    }
+                });
+                new_face.push(new_idx as i32);
+            }
+            new_faces.push(new_face);
+        }
+
+        (new_vertices, new_faces)
     }
 }
 
@@ -166,7 +279,9 @@ impl Default for ModelExporter {
 #[derive(Debug, Clone)]
 struct Material {
     name: String,
+    ambient: (f64, f64, f64),
     diffuse: (f64, f64, f64),
     specular: (f64, f64, f64),
     shininess: f64,
+    transparency: f64,
 }

@@ -148,6 +148,7 @@ pub struct EeFootprint {
     pub rectangles: Vec<EeRectangle>,
     pub texts: Vec<EeText>,
     pub holes: Vec<EeHole>,
+    pub vias: Vec<EeVia>,
     pub svg_nodes: Vec<EeSvgNode>,
 }
 
@@ -168,19 +169,26 @@ pub struct EePad {
 
 #[derive(Debug, Clone)]
 pub struct EeTrack {
-    pub x1: f64,
-    pub y1: f64,
-    pub x2: f64,
-    pub y2: f64,
-    pub width: f64,
+    pub stroke_width: f64,
     pub layer_id: i32,
+    pub net: String,
+    pub points: String,  // Space-separated coordinates: "x1 y1 x2 y2 x3 y3..."
 }
 
 #[derive(Debug, Clone)]
 pub struct EeHole {
     pub x: f64,
     pub y: f64,
-    pub diameter: f64,
+    pub radius: f64,  // EasyEDA stores radius, not diameter
+}
+
+#[derive(Debug, Clone)]
+pub struct EeVia {
+    pub x: f64,
+    pub y: f64,
+    pub diameter: f64,  // Pad outer diameter
+    pub net: String,
+    pub radius: f64,    // Hole radius (drill = radius * 2)
 }
 
 #[derive(Debug, Clone)]

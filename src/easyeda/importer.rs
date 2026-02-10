@@ -458,6 +458,7 @@ impl FootprintImporter {
             rectangles: Vec::new(),
             texts: Vec::new(),
             holes: Vec::new(),
+            vias: Vec::new(),
             svg_nodes: Vec::new(),
         };
 
@@ -503,6 +504,11 @@ impl FootprintImporter {
                 "HOLE" => {
                     if let Ok(hole) = Self::parse_hole(&fields) {
                         footprint.holes.push(hole);
+                    }
+                }
+                "VIA" => {
+                    if let Ok(via) = Self::parse_via(&fields) {
+                        footprint.vias.push(via);
                     }
                 }
                 "SVGNODE" => {
@@ -566,9 +572,9 @@ impl FootprintImporter {
             0.0
         };
 
-        // Field 12 is hole_length (for elliptical drills)
-        let hole_length = if fields.len() > 12 {
-            let val = fields[12].parse::<f64>().unwrap_or(0.0);
+        // Field 13 is hole_length (for elliptical drills) - field 12 is id
+        let hole_length = if fields.len() > 13 {
+            let val = fields[13].parse::<f64>().unwrap_or(0.0);
             if val > 0.0 { Some(val) } else { None }
         } else {
             None
@@ -590,34 +596,23 @@ impl FootprintImporter {
     }
 
     fn parse_track(fields: &[&str]) -> Result<EeTrack> {
-        if fields.len() < 6 {
+        if fields.len() < 5 {
             return Err(EasyedaError::InvalidData("Invalid track data".to_string()).into());
         }
 
-        let width = fields[1].parse::<f64>()
+        // TRACK~stroke_width~layer_id~net~points~id~locked
+        let stroke_width = fields[1].parse::<f64>()
             .map_err(|_| EasyedaError::InvalidData("Invalid track width".to_string()))?;
         let layer_id = fields[2].parse::<i32>()
             .map_err(|_| EasyedaError::InvalidData("Invalid track layer_id".to_string()))?;
-        let x1 = fields[3].parse::<f64>()
-            .map_err(|_| EasyedaError::InvalidData("Invalid track X1".to_string()))?;
-        let y1 = fields[4].parse::<f64>()
-            .map_err(|_| EasyedaError::InvalidData("Invalid track Y1".to_string()))?;
-        let x2 = fields[5].parse::<f64>()
-            .map_err(|_| EasyedaError::InvalidData("Invalid track X2".to_string()))?;
-        let y2 = if fields.len() > 6 {
-            fields[6].parse::<f64>()
-                .map_err(|_| EasyedaError::InvalidData("Invalid track Y2".to_string()))?
-        } else {
-            0.0
-        };
+        let net = fields[3].to_string();
+        let points = fields[4].to_string();
 
         Ok(EeTrack {
-            x1,
-            y1,
-            x2,
-            y2,
-            width,
+            stroke_width,
             layer_id,
+            net,
+            points,
         })
     }
 
@@ -721,13 +716,38 @@ impl FootprintImporter {
             .map_err(|_| EasyedaError::InvalidData("Invalid hole X".to_string()))?;
         let y = fields[2].parse::<f64>()
             .map_err(|_| EasyedaError::InvalidData("Invalid hole Y".to_string()))?;
-        let diameter = fields[3].parse::<f64>()
-            .map_err(|_| EasyedaError::InvalidData("Invalid hole diameter".to_string()))?;
+        let radius = fields[3].parse::<f64>()
+            .map_err(|_| EasyedaError::InvalidData("Invalid hole radius".to_string()))?;
 
         Ok(EeHole {
             x,
             y,
+            radius,
+        })
+    }
+
+    fn parse_via(fields: &[&str]) -> Result<EeVia> {
+        if fields.len() < 6 {
+            return Err(EasyedaError::InvalidData("Invalid via data".to_string()).into());
+        }
+
+        // VIA~x~y~diameter~net~radius~id~locked
+        let x = fields[1].parse::<f64>()
+            .map_err(|_| EasyedaError::InvalidData("Invalid via X".to_string()))?;
+        let y = fields[2].parse::<f64>()
+            .map_err(|_| EasyedaError::InvalidData("Invalid via Y".to_string()))?;
+        let diameter = fields[3].parse::<f64>()
+            .map_err(|_| EasyedaError::InvalidData("Invalid via diameter".to_string()))?;
+        let net = fields[4].to_string();
+        let radius = fields[5].parse::<f64>()
+            .map_err(|_| EasyedaError::InvalidData("Invalid via radius".to_string()))?;
+
+        Ok(EeVia {
+            x,
+            y,
             diameter,
+            net,
+            radius,
         })
     }
 
