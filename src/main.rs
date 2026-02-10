@@ -213,17 +213,50 @@ fn run(args: Cli) -> error::Result<()> {
                 kicad::PadType::Smd
             };
 
+            // Use layer mapping based on pad type
             let layers = if pad_type == kicad::PadType::ThroughHole {
-                vec!["*.Cu".to_string(), "*.Mask".to_string()]
+                kicad::map_pad_layers_tht(ee_pad.layer_id)
             } else {
-                vec!["F.Cu".to_string(), "F.Paste".to_string(), "F.Mask".to_string()]
+                kicad::map_pad_layers_smd(ee_pad.layer_id)
             };
 
-            let drill = ee_pad.hole_radius.map(|radius| kicad::Drill {
-                diameter: radius * 2.0,
-                offset_x: 0.0,
-                offset_y: 0.0,
-            });
+            // Create drill for through-hole pads
+            let drill = if let Some(hole_radius) = ee_pad.hole_radius {
+                if let Some(hole_length) = ee_pad.hole_length {
+                    // Elliptical drill
+                    let max_distance_hole = (hole_radius * 2.0).max(hole_length);
+                    let pos_0 = ee_pad.height - max_distance_hole;
+                    let pos_90 = ee_pad.width - max_distance_hole;
+
+                    if pos_0 > pos_90 {
+                        // Vertical orientation
+                        Some(kicad::Drill {
+                            diameter: hole_radius * 2.0,
+                            width: Some(hole_length),
+                            offset_x: 0.0,
+                            offset_y: 0.0,
+                        })
+                    } else {
+                        // Horizontal orientation
+                        Some(kicad::Drill {
+                            diameter: hole_length,
+                            width: Some(hole_radius * 2.0),
+                            offset_x: 0.0,
+                            offset_y: 0.0,
+                        })
+                    }
+                } else {
+                    // Circular drill
+                    Some(kicad::Drill {
+                        diameter: hole_radius * 2.0,
+                        width: None,
+                        offset_x: 0.0,
+                        offset_y: 0.0,
+                    })
+                }
+            } else {
+                None
+            };
 
             // Apply bbox normalization for footprint coordinates
             let adjusted_x = ee_pad.x - component_data.package_bbox_x;
@@ -256,7 +289,7 @@ fn run(args: Cli) -> error::Result<()> {
                 end_x: adjusted_x2,
                 end_y: adjusted_y2,
                 width: ee_track.width,
-                layer: map_layer(&ee_track.layer),
+                layer: kicad::map_layer(ee_track.layer_id),
             });
         }
 
@@ -353,16 +386,4 @@ fn sanitize_name(name: &str) -> String {
             }
         })
         .collect()
-}
-
-fn map_layer(easyeda_layer: &str) -> String {
-    match easyeda_layer {
-        "1" | "TopLayer" => "F.Cu".to_string(),
-        "2" | "BottomLayer" => "B.Cu".to_string(),
-        "3" | "TopSilkLayer" => "F.SilkS".to_string(),
-        "4" | "BottomSilkLayer" => "B.SilkS".to_string(),
-        "12" | "TopSolderMaskLayer" => "F.Mask".to_string(),
-        "13" | "BottomSolderMaskLayer" => "B.Mask".to_string(),
-        _ => "F.SilkS".to_string(),
-    }
 }

@@ -153,7 +153,8 @@ pub struct EePad {
     pub height: f64,
     pub rotation: f64,
     pub hole_radius: Option<f64>,
-    pub layer: String,
+    pub hole_length: Option<f64>,  // For elliptical drills
+    pub layer_id: i32,
 }
 
 #[derive(Debug, Clone)]
@@ -163,7 +164,7 @@ pub struct EeTrack {
     pub x2: f64,
     pub y2: f64,
     pub width: f64,
-    pub layer: String,
+    pub layer_id: i32,
 }
 
 #[derive(Debug, Clone)]

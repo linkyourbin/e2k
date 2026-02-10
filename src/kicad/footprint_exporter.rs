@@ -96,7 +96,14 @@ impl FootprintExporter {
         // Drill
         if let Some(drill) = &pad.drill {
             let drill_dia = self.converter.px_to_mm(drill.diameter);
-            output.push_str(&format!(" (drill {:.4})", drill_dia));
+            if let Some(width) = drill.width {
+                // Elliptical drill
+                let drill_width = self.converter.px_to_mm(width);
+                output.push_str(&format!(" (drill oval {:.4} {:.4})", drill_dia, drill_width));
+            } else {
+                // Circular drill
+                output.push_str(&format!(" (drill {:.4})", drill_dia));
+            }
         }
 
         output.push_str(")\n");

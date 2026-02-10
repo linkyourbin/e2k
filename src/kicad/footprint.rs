@@ -79,6 +79,7 @@ pub struct KiPad {
 #[derive(Debug, Clone)]
 pub struct Drill {
     pub diameter: f64,
+    pub width: Option<f64>,  // For oval drills: width (if different from diameter)
     pub offset_x: f64,
     pub offset_y: f64,
 }

@@ -508,7 +508,8 @@ impl FootprintImporter {
             .map_err(|_| EasyedaError::InvalidData("Invalid pad width".to_string()))?;
         let height = fields[5].parse::<f64>()
             .map_err(|_| EasyedaError::InvalidData("Invalid pad height".to_string()))?;
-        let layer = fields[6].to_string();
+        let layer_id = fields[6].parse::<i32>()
+            .map_err(|_| EasyedaError::InvalidData("Invalid pad layer_id".to_string()))?;
 
         // Field 8 is the pad number
         let number = if fields.len() > 8 {
@@ -532,6 +533,14 @@ impl FootprintImporter {
             0.0
         };
 
+        // Field 12 is hole_length (for elliptical drills)
+        let hole_length = if fields.len() > 12 {
+            let val = fields[12].parse::<f64>().unwrap_or(0.0);
+            if val > 0.0 { Some(val) } else { None }
+        } else {
+            None
+        };
+
         Ok(EePad {
             number,
             shape,
@@ -541,7 +550,8 @@ impl FootprintImporter {
             height,
             rotation,
             hole_radius,
-            layer,
+            hole_length,
+            layer_id,
         })
     }
 
@@ -552,7 +562,8 @@ impl FootprintImporter {
 
         let width = fields[1].parse::<f64>()
             .map_err(|_| EasyedaError::InvalidData("Invalid track width".to_string()))?;
-        let layer = fields[2].to_string();
+        let layer_id = fields[2].parse::<i32>()
+            .map_err(|_| EasyedaError::InvalidData("Invalid track layer_id".to_string()))?;
         let x1 = fields[3].parse::<f64>()
             .map_err(|_| EasyedaError::InvalidData("Invalid track X1".to_string()))?;
         let y1 = fields[4].parse::<f64>()
@@ -572,7 +583,7 @@ impl FootprintImporter {
             x2,
             y2,
             width,
-            layer,
+            layer_id,
         })
     }
 
