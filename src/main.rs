@@ -152,10 +152,12 @@ fn process_component(args: &Cli, api: &EasyedaApi, lib_manager: &LibraryManager,
 
         let ee_symbol = SymbolImporter::parse(&component_data.data_str)?;
 
-        // Convert EasyEDA symbol to KiCad symbol
-        let footprint_name = sanitize_name(&component_data.title);
+        // Use LCSC ID as unique identifier to prevent name collisions
+        let component_name = format!("{}_{}", sanitize_name(&component_data.title), lcsc_id);
+        let footprint_name = component_name.clone();
+
         let mut ki_symbol = kicad::KiSymbol {
-            name: sanitize_name(&component_data.title),
+            name: component_name.clone(),
             reference: ee_symbol.prefix.clone(),
             value: component_data.title.clone(),
             footprint: format!("e2k:{}", footprint_name),
@@ -407,9 +409,12 @@ fn process_component(args: &Cli, api: &EasyedaApi, lib_manager: &LibraryManager,
         let ee_footprint = FootprintImporter::parse(&component_data.package_detail)?;
         let _converter = Converter::new(args.kicad_version());
 
+        // Use LCSC ID as unique identifier to prevent name collisions
+        let footprint_name = format!("{}_{}", sanitize_name(&component_data.title), lcsc_id);
+
         // Convert EasyEDA footprint to KiCad footprint
         let mut ki_footprint = kicad::KiFootprint {
-            name: sanitize_name(&component_data.title),
+            name: footprint_name,
             pads: Vec::new(),
             tracks: Vec::new(),
             circles: Vec::new(),
@@ -775,7 +780,8 @@ fn process_component(args: &Cli, api: &EasyedaApi, lib_manager: &LibraryManager,
                     let exporter = ModelExporter::new();
                     match exporter.export_step(&step_data) {
                         Ok(step_data) => {
-                            let model_name = sanitize_name(&model_info.title);
+                            // Use LCSC ID as unique identifier to prevent name collisions
+                            let model_name = format!("{}_{}", sanitize_name(&model_info.title), lcsc_id);
                             match lib_manager.write_step_model(&model_name, &step_data) {
                                 Ok(_) => println!("✓ 3D model converted: {} (STEP)", model_name),
                                 Err(e) => log::warn!("Failed to write STEP model: {}", e),
