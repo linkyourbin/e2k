@@ -18,7 +18,7 @@ impl FootprintExporter {
         let mut output = String::new();
 
         // Module header
-        output.push_str(&format!("(footprint \"{}\" (version 20221018) (generator e2k)\n", footprint.name));
+        output.push_str(&format!("(footprint \"{}\" (version 20221018) (generator nlbn)\n", footprint.name));
         output.push_str("  (layer \"F.Cu\")\n");
 
         // Reference and value text

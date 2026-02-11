@@ -1,4 +1,4 @@
-# e2k
+# nlbn
 
 **Fast EasyEDA/LCSC to KiCad converter written in Rust**
 
@@ -18,22 +18,22 @@ Convert EasyEDA and LCSC components to KiCad library formats with blazing fast p
 
 ### Option 1: Download Pre-built Binary
 
-Download from [GitHub Releases](https://github.com/linkyourbin/e2k/releases):
-- Windows: `e2k-windows-x86_64.exe.zip` ✓ Tested
-- Linux: `e2k-linux-x86_64.tar.gz` (untested)
-- macOS: `e2k-macos-x86_64.tar.gz` or `e2k-macos-aarch64.tar.gz` (untested)
+Download from [GitHub Releases](https://github.com/linkyourbin/nlbn/releases):
+- Windows: `nlbn-windows-x86_64.exe.zip` ✓ Tested
+- Linux: `nlbn-linux-x86_64.tar.gz` (untested)
+- macOS: `nlbn-macos-x86_64.tar.gz` or `nlbn-macos-aarch64.tar.gz` (untested)
 
 ### Option 2: Install from crates.io
 
 ```bash
-cargo install e2k
+cargo install nlbn
 ```
 
 ### Option 3: Build from Source
 
 ```bash
-git clone https://github.com/linkyourbin/e2k.git
-cd e2k
+git clone https://github.com/linkyourbin/nlbn.git
+cd nlbn
 cargo build --release
 ```
 
@@ -43,10 +43,10 @@ cargo build --release
 
 ```bash
 # Convert everything (symbol + footprint + 3D model)
-e2k --full --lcsc-id C529356
+nlbn --full --lcsc-id C529356
 
 # Convert only symbol
-e2k --symbol --lcsc-id C529356
+nlbn --symbol --lcsc-id C529356
 ```
 
 ### Batch Processing
@@ -57,16 +57,16 @@ echo "C2040" > components.txt
 echo "C529356" >> components.txt
 
 # Batch convert with 8 parallel threads (fast!)
-e2k --full --batch components.txt --parallel 8
+nlbn --full --batch components.txt --parallel 8
 
 # Continue on errors
-e2k --full --batch components.txt --parallel 8 --continue-on-error
+nlbn --full --batch components.txt --parallel 8 --continue-on-error
 ```
 
 ## Usage
 
 ```
-e2k [OPTIONS]
+nlbn [OPTIONS]
 
 Options:
   --lcsc-id <ID>          LCSC component ID (e.g., C2040)
@@ -95,10 +95,10 @@ Options:
 
 ```
 output/
-├── e2k.kicad_sym              # Symbol library
-├── e2k.pretty/                # Footprint library
+├── nlbn.kicad_sym              # Symbol library
+├── nlbn.pretty/                # Footprint library
 │   └── Component_Name.kicad_mod
-└── e2k.3dshapes/              # 3D model library
+└── nlbn.3dshapes/              # 3D model library
     └── Component_Name.step
 ```
 
@@ -106,13 +106,13 @@ output/
 
 ```bash
 # High-performance batch conversion
-e2k --full --batch components.txt --parallel 16 -o ./library
+nlbn --full --batch components.txt --parallel 16 -o ./library
 
 # Resume interrupted batch (skip existing)
-e2k --full --batch components.txt --continue-on-error
+nlbn --full --batch components.txt --continue-on-error
 
 # KiCad v5 format
-e2k --full --lcsc-id C529356 --v5
+nlbn --full --lcsc-id C529356 --v5
 ```
 
 ## License

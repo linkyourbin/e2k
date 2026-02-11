@@ -24,12 +24,12 @@ impl LibraryManager {
             .map_err(KicadError::Io)?;
 
         // Create .pretty directory for footprints
-        let pretty_dir = self.output_path.join("e2k.pretty");
+        let pretty_dir = self.output_path.join("nlbn.pretty");
         fs::create_dir_all(&pretty_dir)
             .map_err(KicadError::Io)?;
 
         // Create .3dshapes directory for 3D models
-        let shapes_dir = self.output_path.join("e2k.3dshapes");
+        let shapes_dir = self.output_path.join("nlbn.3dshapes");
         fs::create_dir_all(&shapes_dir)
             .map_err(KicadError::Io)?;
 
@@ -105,7 +105,7 @@ impl LibraryManager {
             existing.trim_end().trim_end_matches(')').to_string()
         } else {
             if component_data.contains("(symbol") {
-                String::from("(kicad_symbol_lib\n  (version 20211014)\n  (generator e2k)")
+                String::from("(kicad_symbol_lib\n  (version 20211014)\n  (generator nlbn)")
             } else {
                 String::from("EESchema-LIBRARY Version 2.4\n#encoding utf-8")
             }
@@ -175,7 +175,7 @@ impl LibraryManager {
             // Create new library file with header (v6 format with proper formatting)
             if component_data.contains("(symbol") {
                 // v6 format - match Python's formatting exactly
-                String::from("(kicad_symbol_lib\n  (version 20211014)\n  (generator e2k)")
+                String::from("(kicad_symbol_lib\n  (version 20211014)\n  (generator nlbn)")
             } else {
                 // v5 format
                 String::from("EESchema-LIBRARY Version 2.4\n#encoding utf-8")
@@ -240,7 +240,7 @@ impl LibraryManager {
 
     /// Write a footprint file
     pub fn write_footprint(&self, footprint_name: &str, data: &str) -> Result<PathBuf> {
-        let pretty_dir = self.output_path.join("e2k.pretty");
+        let pretty_dir = self.output_path.join("nlbn.pretty");
         let footprint_path = pretty_dir.join(format!("{}.kicad_mod", footprint_name));
 
         fs::write(&footprint_path, data)
@@ -253,7 +253,7 @@ impl LibraryManager {
 
     /// Write 3D model files
     pub fn write_3d_model(&self, model_name: &str, wrl_data: &str, step_data: &[u8]) -> Result<(PathBuf, PathBuf)> {
-        let shapes_dir = self.output_path.join("e2k.3dshapes");
+        let shapes_dir = self.output_path.join("nlbn.3dshapes");
 
         // Write VRML file
         let wrl_path = shapes_dir.join(format!("{}.wrl", model_name));
@@ -275,7 +275,7 @@ impl LibraryManager {
 
     /// Write only VRML model (when STEP is not available)
     pub fn write_wrl_model(&self, model_name: &str, wrl_data: &str) -> Result<PathBuf> {
-        let shapes_dir = self.output_path.join("e2k.3dshapes");
+        let shapes_dir = self.output_path.join("nlbn.3dshapes");
 
         // Write VRML file
         let wrl_path = shapes_dir.join(format!("{}.wrl", model_name));
@@ -289,7 +289,7 @@ impl LibraryManager {
 
     /// Write only STEP model
     pub fn write_step_model(&self, model_name: &str, step_data: &[u8]) -> Result<PathBuf> {
-        let shapes_dir = self.output_path.join("e2k.3dshapes");
+        let shapes_dir = self.output_path.join("nlbn.3dshapes");
 
         // Write STEP file
         let step_path = shapes_dir.join(format!("{}.step", model_name));
@@ -304,9 +304,9 @@ impl LibraryManager {
     /// Get the symbol library path
     pub fn get_symbol_lib_path(&self, v5: bool) -> PathBuf {
         if v5 {
-            self.output_path.join("e2k.lib")
+            self.output_path.join("nlbn.lib")
         } else {
-            self.output_path.join("e2k.kicad_sym")
+            self.output_path.join("nlbn.kicad_sym")
         }
     }
 }

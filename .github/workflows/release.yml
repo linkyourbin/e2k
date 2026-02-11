@@ -18,24 +18,24 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            artifact_name: e2k
-            asset_name: e2k-linux-x86_64
+            artifact_name: nlbn
+            asset_name: nlbn-linux-x86_64
           - os: ubuntu-latest
             target: x86_64-unknown-linux-musl
-            artifact_name: e2k
-            asset_name: e2k-linux-x86_64-musl
+            artifact_name: nlbn
+            asset_name: nlbn-linux-x86_64-musl
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact_name: e2k.exe
-            asset_name: e2k-windows-x86_64.exe
+            artifact_name: nlbn.exe
+            asset_name: nlbn-windows-x86_64.exe
           - os: macos-latest
             target: x86_64-apple-darwin
-            artifact_name: e2k
-            asset_name: e2k-macos-x86_64
+            artifact_name: nlbn
+            asset_name: nlbn-macos-x86_64
           - os: macos-latest
             target: aarch64-apple-darwin
-            artifact_name: e2k
-            asset_name: e2k-macos-aarch64
+            artifact_name: nlbn
+            asset_name: nlbn-macos-aarch64
 
     steps:
       - uses: actions/checkout@v4

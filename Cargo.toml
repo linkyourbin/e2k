@@ -1,23 +1,23 @@
 [package]
-name = "e2k"
+name = "nlbn"
 version = "0.3.0"
 edition = "2024"
 authors = ["linkyourbin"]
 description = "Fast and reliable EasyEDA/LCSC to KiCad converter with batch processing support"
 license = "MIT"
-repository = "https://github.com/linkyourbin/e2k"
-homepage = "https://github.com/linkyourbin/e2k"
-documentation = "https://github.com/linkyourbin/e2k"
+repository = "https://github.com/linkyourbin/nlbn"
+homepage = "https://github.com/linkyourbin/nlbn"
+documentation = "https://github.com/linkyourbin/nlbn"
 readme = "README.md"
 keywords = ["kicad", "easyeda", "lcsc", "eda", "converter"]
 categories = ["command-line-utilities", "development-tools"]
 
 [lib]
-name = "e2k"
+name = "nlbn"
 path = "src/lib.rs"
 
 [[bin]]
-name = "e2k"
+name = "nlbn"
 path = "src/main.rs"
 
 [dependencies]

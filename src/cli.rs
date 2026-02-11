@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use crate::error::{AppError, Result};
 
 #[derive(Parser, Debug)]
-#[command(name = "e2k")]
+#[command(name = "nlbn")]
 #[command(version = "0.3.0")]
 #[command(about = "Fast EasyEDA/LCSC to KiCad converter with parallel downloads", long_about = None)]
 pub struct Cli {

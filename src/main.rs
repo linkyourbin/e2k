@@ -1,5 +1,5 @@
 use clap::Parser;
-use e2k::*;
+use nlbn::*;
 use std::process;
 use std::sync::{Arc, Mutex};
 use rayon::prelude::*;
@@ -160,7 +160,7 @@ fn process_component(args: &Cli, api: &EasyedaApi, lib_manager: &LibraryManager,
             name: component_name.clone(),
             reference: ee_symbol.prefix.clone(),
             value: component_data.title.clone(),
-            footprint: format!("e2k:{}", footprint_name),
+            footprint: format!("nlbn:{}", footprint_name),
             datasheet: component_data.datasheet.clone(),
             manufacturer: component_data.manufacturer.clone(),
             lcsc_id: component_data.lcsc_id.clone(),
