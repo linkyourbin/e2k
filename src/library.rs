@@ -37,6 +37,7 @@ impl LibraryManager {
     }
 
     /// Check if a component exists in the library file
+    /// Note: This should only be called within a lock if used for write decisions
     pub fn component_exists(&self, lib_path: &Path, component_name: &str) -> Result<bool> {
         if !lib_path.exists() {
             return Ok(false);
@@ -62,6 +63,101 @@ impl LibraryManager {
         }
 
         Ok(false)
+    }
+
+    /// Add or update a component in the library file (thread-safe)
+    pub fn add_or_update_component(&self, lib_path: &Path, component_name: &str, component_data: &str, overwrite: bool) -> Result<()> {
+        // Lock to prevent concurrent writes and check-then-act race conditions
+        let _lock = SYMBOL_WRITE_LOCK.lock().unwrap();
+
+        // Check if component exists (within lock to prevent TOCTOU)
+        let exists = if lib_path.exists() {
+            let content = fs::read_to_string(lib_path)
+                .map_err(KicadError::Io)?;
+
+            let v6_pattern = format!(r#"\(symbol\s+"{}""#, regex::escape(component_name));
+            if let Ok(re) = Regex::new(&v6_pattern) {
+                re.is_match(&content)
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        if exists && overwrite {
+            // Update existing component
+            self.update_component_internal(lib_path, component_name, component_data)?;
+        } else if !exists {
+            // Add new component
+            self.add_component_internal(lib_path, component_data)?;
+        }
+        // If exists and !overwrite, do nothing
+
+        Ok(())
+    }
+
+    /// Internal add component (assumes lock is held)
+    fn add_component_internal(&self, lib_path: &Path, component_data: &str) -> Result<()> {
+        let mut content = if lib_path.exists() {
+            let existing = fs::read_to_string(lib_path)
+                .map_err(KicadError::Io)?;
+            existing.trim_end().trim_end_matches(')').to_string()
+        } else {
+            if component_data.contains("(symbol") {
+                String::from("(kicad_symbol_lib\n  (version 20211014)\n  (generator e2k)")
+            } else {
+                String::from("EESchema-LIBRARY Version 2.4\n#encoding utf-8")
+            }
+        };
+
+        content.push('\n');
+        content.push_str(component_data);
+
+        if component_data.contains("(symbol") {
+            content.push('\n');
+            content.push(')');
+        }
+        content.push('\n');
+
+        fs::write(lib_path, content)
+            .map_err(KicadError::Io)?;
+
+        Ok(())
+    }
+
+    /// Internal update component (assumes lock is held)
+    fn update_component_internal(&self, lib_path: &Path, component_name: &str, new_data: &str) -> Result<()> {
+        let content = fs::read_to_string(lib_path)
+            .map_err(KicadError::Io)?;
+
+        let v6_pattern = format!(
+            r#"\(symbol\s+"{}"\s+.*?\n\)\n"#,
+            regex::escape(component_name)
+        );
+        if let Ok(re) = Regex::new(&v6_pattern) {
+            if re.is_match(&content) {
+                let new_content = re.replace(&content, new_data);
+                fs::write(lib_path, new_content.as_ref())
+                    .map_err(KicadError::Io)?;
+                return Ok(());
+            }
+        }
+
+        let v5_pattern = format!(
+            r"DEF\s+{}\s+.*?ENDDEF\n",
+            regex::escape(component_name)
+        );
+        if let Ok(re) = Regex::new(&v5_pattern) {
+            if re.is_match(&content) {
+                let new_content = re.replace(&content, new_data);
+                fs::write(lib_path, new_content.as_ref())
+                    .map_err(KicadError::Io)?;
+                return Ok(());
+            }
+        }
+
+        Err(KicadError::SymbolExport(format!("Component {} not found in library", component_name)).into())
     }
 
     /// Add a component to the library file

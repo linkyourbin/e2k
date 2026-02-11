@@ -394,13 +394,8 @@ fn process_component(args: &Cli, api: &EasyedaApi, lib_manager: &LibraryManager,
 
         let lib_path = lib_manager.get_symbol_lib_path(args.v5);
 
-        if args.overwrite && lib_manager.component_exists(&lib_path, &ki_symbol.name)? {
-            log::info!("Updating existing symbol: {}", ki_symbol.name);
-            lib_manager.update_component(&lib_path, &ki_symbol.name, &symbol_data)?;
-        } else {
-            log::info!("Adding new symbol: {}", ki_symbol.name);
-            lib_manager.add_component(&lib_path, &symbol_data)?;
-        }
+        // Use thread-safe add_or_update method
+        lib_manager.add_or_update_component(&lib_path, &ki_symbol.name, &symbol_data, args.overwrite)?;
 
         println!("✓ Symbol converted: {}", ki_symbol.name);
     }
