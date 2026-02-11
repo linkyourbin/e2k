@@ -1,10 +1,16 @@
 [package]
 name = "e2k"
-version = "0.1.0"
+version = "0.3.0"
 edition = "2024"
 authors = ["linkyourbin"]
-description = "Convert EasyEDA/LCSC components to KiCad library formats"
+description = "Fast and reliable EasyEDA/LCSC to KiCad converter with batch processing support"
 license = "MIT"
+repository = "https://github.com/linkyourbin/e2k"
+homepage = "https://github.com/linkyourbin/e2k"
+documentation = "https://github.com/linkyourbin/e2k"
+readme = "README.md"
+keywords = ["kicad", "easyeda", "lcsc", "eda", "converter"]
+categories = ["command-line-utilities", "development-tools"]
 
 [lib]
 name = "e2k"

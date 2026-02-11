@@ -4,8 +4,8 @@ use crate::error::{AppError, Result};
 
 #[derive(Parser, Debug)]
 #[command(name = "e2k")]
-#[command(version = "0.1.0")]
-#[command(about = "Convert EasyEDA/LCSC components to KiCad library formats", long_about = None)]
+#[command(version = "0.3.0")]
+#[command(about = "Fast EasyEDA/LCSC to KiCad converter with parallel downloads", long_about = None)]
 pub struct Cli {
     /// LCSC component ID (e.g., C2040)
     #[arg(long, value_name = "ID", conflicts_with = "batch")]
