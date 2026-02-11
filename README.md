@@ -14,12 +14,14 @@ Convert EasyEDA and LCSC components to KiCad library formats with blazing fast p
 
 ## Installation
 
+**Note**: Currently tested on Windows platform only. Linux and macOS builds are provided but not yet tested.
+
 ### Option 1: Download Pre-built Binary
 
 Download from [GitHub Releases](https://github.com/linkyourbin/e2k/releases):
-- Windows: `e2k-windows-x86_64.exe.zip`
-- Linux: `e2k-linux-x86_64.tar.gz`
-- macOS: `e2k-macos-x86_64.tar.gz` or `e2k-macos-aarch64.tar.gz`
+- Windows: `e2k-windows-x86_64.exe.zip` ✓ Tested
+- Linux: `e2k-linux-x86_64.tar.gz` (untested)
+- macOS: `e2k-macos-x86_64.tar.gz` or `e2k-macos-aarch64.tar.gz` (untested)
 
 ### Option 2: Install from crates.io
 
